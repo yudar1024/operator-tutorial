@@ -57,9 +57,38 @@ func (r *PrinterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 	log.Info("Reconciling Printer", "Printer.Namespace", printer.Namespace, "Printer.Name", printer.Name)
+
+	var configmap corev1.ConfigMap
+	if err := r.Get(ctx, client.ObjectKey{Namespace: printer.Namespace, Name: printer.Name}, &configmap); err != nil {
+		log.Info("Configmap not found, creating a new one")
+		log.Info("Creating a new configmap")
+		new_configmap := &corev1.ConfigMap{
+			ObjectMeta: ctrl.ObjectMeta{Namespace: printer.Namespace, Name: printer.Name},
+			Data: map[string]string{
+				"configmapmsg": "Hello, Kubernetes configmap!",
+				"mes2":"mes	2",
+			},
+		}
+		if err := ctrl.SetControllerReference(&printer, new_configmap, r.Scheme); err != nil {
+			log.Error(err, "unable to set owner reference")
+			return ctrl.Result{}, err
+		}
+		if err := r.Create(ctx, new_configmap); err != nil {
+			log.Error(err, "unable to create configmap")
+			return ctrl.Result{}, err
+		}
+	} else {
+		log.Info("Configmap found, skipping creation")
+		// TODO(user): update configmap if needed
+		return ctrl.Result{}, nil
+	}
+	
+
 	var deployment appsv1.Deployment
 	if err := r.Get(ctx, client.ObjectKey{Namespace: printer.Namespace, Name: printer.Name}, &deployment); err != nil {
 		log.Info("Deployment not found, creating a new one")
+		
+		log.Info("Creating a new Deployment")
 		var replicas int32 = 1
 		new_deployment := &appsv1.Deployment{
 			ObjectMeta: ctrl.ObjectMeta{Namespace: printer.Namespace, Name: printer.Name},
